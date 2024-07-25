@@ -54,9 +54,9 @@ func ChooseVoice() string {
 }
 
 func selectOption(prompt string, options []string, reader *bufio.Reader) (string, bool) {
-	if len(options) == 1 {
-		return options[0], false
-	}
+	// if len(options) == 1 {
+	// 	return options[0], false
+	// }
 	slices.Sort(options)
 	for {
 		fmt.Printf("Choose a %s:\n", prompt)
@@ -96,7 +96,6 @@ func init() {
 }
 
 func clearConsole() {
-	// print("\033[H\033[2J")
 	if value, ok := clear[runtime.GOOS]; ok {
 		value()
 	}

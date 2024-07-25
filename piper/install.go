@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/schollz/progressbar/v3"
@@ -74,15 +73,10 @@ func rimraf(fn string) {
 }
 
 func installArc(dstDir string, srcFS fs.FS) error {
-	dstDir, err := filepath.Abs(dstDir)
-	if err != nil {
-		return fmt.Errorf("installArc: `%s` is not correct", dstDir)
+	dstDir = filepath.Clean(dstDir)
+	if !filepath.IsAbs(dstDir) {
+		return fmt.Errorf("installArc: `%s` is not absolute", dstDir)
 	}
-
-	// dstDir = filepath.Clean(dstDir)
-	// if !filepath.IsAbs(dstDir) {
-	// 	return fmt.Errorf("installArc: `%s` is not absolute", dstDir)
-	// }
 
 	os.MkdirAll(filepath.Dir(dstDir), 0755)
 
@@ -157,12 +151,16 @@ func installMeta(dstDir string, srcFS fs.FS) (alreadyInstalled bool, tmpDir stri
 
 func installPiper(dataDir string) (exeFn string, err error) {
 	// pkgDir := filepath.Join(dataDir, "piper-bin-"+piperAsset.Name)
-	exeFn = filepath.Join(dataDir, piperExe)
+	dataDir, err = filepath.Abs(dataDir)
+	if err != nil {
+		return "", fmt.Errorf("installArc: `%s` is not correct", dataDir)
+	}
+
 	defer os.Chmod(exeFn, 0755)
 	if err := installArc(dataDir, piperAsset.FS); err != nil {
 		return "", fmt.Errorf("installPiper: walk embedded fs: %w", err)
 	}
-	return exeFn, nil
+	return filepath.Join(dataDir, piperExe), nil
 }
 
 //
@@ -198,44 +196,9 @@ func downloadWithBar(fileName, url string) error {
 	return nil
 }
 
-func installVoice(voiceUrl, folderName string) ([]string, error) {
+func installVoice(voiceURL, folderName string) ([]string, error) {
 	extensions := []string{".onnx", ".onnx.json"}
-
-	parts := strings.Split(voiceUrl, "/")
-	fileName := parts[len(parts)-1]
-
-	folderName, err := filepath.Abs(folderName)
-	if err != nil {
-		return nil, fmt.Errorf("installVoice: absolute folder path: %s", folderName)
-	}
-
-	filePaths := make([]string, 2)
-
-	for i, ext := range extensions {
-		targetPath := folderName + "/" + fileName + ext
-
-		if _, err := os.Stat(targetPath); os.IsNotExist(err) {
-			if err := downloadWithBar(targetPath, voiceUrl+ext); err != nil {
-				return nil, fmt.Errorf("installVoice: failed to download file: %v", err)
-			}
-		}
-
-		path, err := filepath.Abs(targetPath)
-		if err != nil {
-			return nil, fmt.Errorf("installVoice: absolute target path: %s", err)
-		}
-		filePaths[i] = path
-	}
-
-	return filePaths, nil
-}
-
-func _installVoice(voiceURL, folderName string) ([]string, error) {
-	extensions := []string{".onnx", ".onnx.json"}
-	// fileName := filepath.Base(voiceURL)
-
-	parts := strings.Split(voiceURL, "/")
-	fileName := parts[len(parts)-1]
+	fileName := filepath.Base(voiceURL)
 
 	absFolder, err := filepath.Abs(folderName)
 	if err != nil {

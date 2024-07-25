@@ -1,6 +1,5 @@
-cache
-*.onnx
-*.json
+downloadedVoices
+piperInstated
+synthesized.wav
 *.log
 go.sum
-piperInstated

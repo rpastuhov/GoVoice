@@ -18,62 +18,58 @@ type TTS struct {
 	piperDir string
 }
 
-func (t *TTS) Synthesize(text string) (wav []byte, err error) {
-	stdoutFn := "-"
-	var stdout io.Writer
+func (t *TTS) Synthesize(text string) ([]byte, error) {
+	var output io.Writer
+	outputFile := "-"
+
 	if runtime.GOOS != "windows" {
-		stdout = bytes.NewBuffer(nil)
+		output = new(bytes.Buffer)
 	} else {
 		tmpDir, err := os.MkdirTemp("", "ab-piper.")
 		if err != nil {
-			return nil, fmt.Errorf("TTS.Synthesize: Cannot create temp file: %w", err)
+			return nil, fmt.Errorf("TTS.Synthesize: сreating temp directory: %w", err)
 		}
 		defer os.RemoveAll(tmpDir)
-		stdoutFn = filepath.Join(tmpDir, "tts.wav")
+		outputFile = filepath.Join(tmpDir, "tts.wav")
 	}
 
-	stdin := strings.NewReader(text)
-	stderr := bytes.NewBuffer(nil)
 	cmd := exec.Command(t.piperExe,
 		"--model", t.onnxFn,
 		"--config", t.jsonFn,
-		"--output_file", stdoutFn)
+		"--output_file", outputFile,
+	)
 	cmd.Dir = t.piperDir
-	cmd.Stdin = stdin
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
+	cmd.Stdin = strings.NewReader(text)
+	cmd.Stdout = output
+	cmd.Stderr = new(bytes.Buffer)
 	cmd.SysProcAttr = sysProcAttr
+
 	if err := cmd.Run(); err != nil {
-		return nil, fmt.Errorf("TTS.Synthesize: invalid UTF-8 path: %s: %s: %s", cmd, err, stderr.Bytes())
+		return nil, fmt.Errorf("TTS.Synthesize: running piper: %w: %s", err, cmd.Stderr.(*bytes.Buffer).String())
 	}
 
-	if stdout != nil {
-		return stdout.(*bytes.Buffer).Bytes(), nil
+	if output != nil {
+		return output.(*bytes.Buffer).Bytes(), nil
 	}
 
-	wav, err = os.ReadFile(stdoutFn)
-	if err != nil {
-		return nil, fmt.Errorf("TTS.Synthesize: %s", err)
-	}
-	return wav, nil
+	return os.ReadFile(outputFile)
 }
 
-func New(piperDir, voicesDir, voiceUrl string) (*TTS, error) {
+func New(piperDir, voicesDir, voiceURL string) (*TTS, error) {
 	exeFn, err := installPiper(piperDir)
 	if err != nil {
 		return nil, fmt.Errorf("piper.Install: cannot install piper binary: %w", err)
 	}
 
-	filePaths, err := installVoice(voiceUrl, voicesDir)
+	filePaths, err := installVoice(voiceURL, voicesDir)
 	if err != nil {
 		return nil, fmt.Errorf("piper.Install: cannot set piper voice: %w", err)
 	}
 
-	t := &TTS{
+	return &TTS{
 		onnxFn:   filePaths[0],
 		jsonFn:   filePaths[1],
 		piperDir: filepath.Dir(exeFn),
 		piperExe: exeFn,
-	}
-	return t, nil
+	}, nil
 }
